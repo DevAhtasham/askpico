@@ -18,6 +18,11 @@ import {
 
 import useStore from '@store/store';
 
+const MAX_RECENT_CHATS = 5;
+
+const getRecency = (chat: { updatedAt?: number; createdAt?: number }) =>
+  chat.updatedAt ?? chat.createdAt ?? 0;
+
 const getDayStart = (d: Date) =>
   new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
@@ -41,11 +46,11 @@ const groupChatsByDate = (chats: ChatHistoryInterface[]) => {
   };
 
   chats.forEach((chat) => {
-    if (chat.createdAt === undefined) {
+    if (getRecency(chat) === 0) {
       groups.older.push(chat);
       return;
     }
-    const d = new Date(chat.createdAt);
+    const d = new Date(getRecency(chat));
     if (isNaN(d.getTime())) {
       groups.older.push(chat);
       return;
@@ -77,8 +82,6 @@ const ChatHistoryList = () => {
   );
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
 
-  const currentChatIndex = useRef<number>(useStore.getState().currentChatIndex);
-
   const updateFolders = useRef(() => {
     const _folders: ChatHistoryFolderInterface = {};
     const _noFolders: ChatHistoryInterface[] = [];
@@ -93,6 +96,7 @@ const ChatHistoryList = () => {
             index: index,
             id: chat.id,
             createdAt: chat.createdAt,
+            updatedAt: chat.updatedAt,
           });
         } else {
           if (!_folders[chat.folder]) _folders[chat.folder] = [];
@@ -101,6 +105,7 @@ const ChatHistoryList = () => {
             index: index,
             id: chat.id,
             createdAt: chat.createdAt,
+            updatedAt: chat.updatedAt,
           });
         }
       });
@@ -112,21 +117,20 @@ const ChatHistoryList = () => {
       _chatFolders[folderId] = _folders[folderId];
     }
 
+    _noFolders.sort((a, b) => getRecency(b) - getRecency(a));
+
     setChatFolders(_chatFolders);
-    setNoChatFolders(_noFolders);
+    setNoChatFolders(_noFolders.slice(0, MAX_RECENT_CHATS));
   }).current;
 
   useEffect(() => {
     updateFolders();
 
-    useStore.subscribe((state) => {
-      if (
-        state.generating ||
-        currentChatIndex.current === state.currentChatIndex
-      ) {
-        return;
+    return useStore.subscribe((state, prev) => {
+      if (state.generating) return;
+      if (state.chats !== prev.chats || state.generating !== prev.generating) {
+        updateFolders();
       }
-      updateFolders();
     });
   }, []);
 

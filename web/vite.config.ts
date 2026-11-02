@@ -39,7 +39,7 @@ const clientLogRelay = (): Plugin => ({
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), wasm(), topLevelAwait(), clientLogRelay()],
+  plugins: [process.env.VITEST ? null : react(), wasm(), topLevelAwait(), clientLogRelay()],
   resolve: {
     alias: {
       '@icon/': fileURLToPath(new URL('./src/assets/icons/', import.meta.url)) + '/',

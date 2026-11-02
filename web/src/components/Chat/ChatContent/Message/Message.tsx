@@ -4,7 +4,8 @@ import useStore from '@store/store';
 import Avatar from './Avatar';
 import MessageContent from './MessageContent';
 
-import { Role } from '@type/chat';
+import { ImageMessageInterface, Role } from '@type/chat';
+import ImageMessage from '@components/Image/ImageMessage';
 
 const Message = React.memo(
   ({
@@ -12,11 +13,13 @@ const Message = React.memo(
     content,
     messageIndex,
     sticky = false,
+    image,
   }: {
     role: Role;
     content: string;
     messageIndex: number;
     sticky?: boolean;
+    image?: ImageMessageInterface;
   }) => {
     const hideSideMenu = useStore((state) => state.hideSideMenu);
 
@@ -46,11 +49,15 @@ const Message = React.memo(
               role === 'user' ? 'items-end' : 'items-start'
             }`}
           >
-            <MessageContent
-              role={role}
-              content={content}
-              messageIndex={messageIndex}
-            />
+            {image ? (
+              <ImageMessage image={image} messageIndex={messageIndex} />
+            ) : (
+              <MessageContent
+                role={role}
+                content={content}
+                messageIndex={messageIndex}
+              />
+            )}
           </div>
         </div>
       </div>

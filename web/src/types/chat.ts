@@ -4,9 +4,22 @@ import { Theme } from './theme';
 export type Role = 'user' | 'assistant' | 'system';
 export const roles: Role[] = ['user', 'assistant', 'system'];
 
+export type ImageAspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+
+export interface ImageMessageInterface {
+  provider: string;
+  prompt: string;
+  aspectRatio: ImageAspectRatio;
+  status: 'loading' | 'done' | 'error';
+  imageId?: string;
+  mimeType?: string;
+  error?: string;
+}
+
 export interface MessageInterface {
   role: Role;
   content: string;
+  image?: ImageMessageInterface;
 }
 
 export interface ChatInterface {
@@ -17,6 +30,7 @@ export interface ChatInterface {
   config: ConfigInterface;
   titleSet: boolean;
   createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface ConfigInterface {
@@ -33,6 +47,7 @@ export interface ChatHistoryInterface {
   index: number;
   id: string;
   createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface ChatHistoryFolderInterface {
@@ -148,4 +163,8 @@ export interface LocalStorageInterfaceV7oV8
   foldersName: string[];
   foldersExpanded: boolean[];
   folders: FolderCollection;
+}
+
+export interface LocalStorageInterfaceV8ToV9 extends LocalStorageInterfaceV7oV8 {
+  defaultSystemMessage: string;
 }

@@ -45,7 +45,6 @@ const useSubmit = () => {
   const setError = useStore((state) => state.setError);
   const setGenerating = useStore((state) => state.setGenerating);
   const generating = useStore((state) => state.generating);
-  const currentChatIndex = useStore((state) => state.currentChatIndex);
   const setChats = useStore((state) => state.setChats);
 
   const generateTitle = async (
@@ -63,9 +62,11 @@ const useSubmit = () => {
   const handleSubmit = async () => {
     const chats = useStore.getState().chats;
     if (generating || !chats) return;
+    const currentChatIndex = useStore.getState().currentChatIndex;
 
     const updatedChats: ChatInterface[] = JSON.parse(JSON.stringify(chats));
 
+    updatedChats[currentChatIndex].updatedAt = Date.now();
     updatedChats[currentChatIndex].messages.push({
       role: 'assistant',
       content: '',
@@ -80,7 +81,7 @@ const useSubmit = () => {
         throw new Error('No messages submitted!');
 
       const messages = limitMessageTokens(
-        chats[currentChatIndex].messages,
+        chats[currentChatIndex].messages.filter((message) => !message.image),
         chats[currentChatIndex].config.max_tokens,
         chats[currentChatIndex].config.model
       );

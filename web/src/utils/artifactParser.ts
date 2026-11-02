@@ -1,4 +1,5 @@
 import { ArtifactInterface, ArtifactType } from '@type/artifact';
+import { normalizeProjectPaths } from '@utils/artifactPaths';
 
 export const FENCE_REGEX = /```([^\n`]*)\n([\s\S]*?)(?:```|$)/g;
 
@@ -90,6 +91,13 @@ const resolveBlockPaths = (blocks: CodeBlock[]): string[] => {
   });
 };
 
+type ResolvedBlock = CodeBlock & { index: number; path: string };
+
+const resolveFencedBlocks = (blocks: CodeBlock[]): ResolvedBlock[] => {
+  const paths = resolveBlockPaths(blocks);
+  return normalizeProjectPaths(blocks.map((block, index) => ({ ...block, index, path: paths[index] })));
+};
+
 export type MarkdownSegment =
   | { type: 'text'; value: string }
   | { type: 'code'; language: string; filePath?: string; content: string };
@@ -97,15 +105,17 @@ export type MarkdownSegment =
 export const splitFences = (markdown: string): MarkdownSegment[] => {
   const source = fenceUnfencedBlocks(markdown);
   const matches = [...source.matchAll(FENCE_REGEX)];
-  const blocks = matches.map(toCodeBlock);
-  const paths = resolveBlockPaths(blocks);
+  const resolved = new Map(
+    resolveFencedBlocks(matches.map(toCodeBlock)).map((block): [number, ResolvedBlock] => [block.index, block])
+  );
   const segments: MarkdownSegment[] = [];
   let last = 0;
   matches.forEach((match, i) => {
     const index = match.index ?? 0;
     if (index > last)
       segments.push({ type: 'text', value: source.slice(last, index) });
-    segments.push({ type: 'code', ...blocks[i], filePath: paths[i] });
+    const block = resolved.get(i);
+    if (block) segments.push({ type: 'code', language: block.language, filePath: block.path, content: block.content });
     last = index + match[0].length;
   });
   if (last < source.length)
@@ -121,19 +131,18 @@ export const extractArtifacts = (
   const artifacts: ArtifactInterface[] = [];
   const createdAt = Date.now();
   const source = fenceUnfencedBlocks(markdown);
-  const blocks = [...source.matchAll(FENCE_REGEX)].map(toCodeBlock);
-  const paths = resolveBlockPaths(blocks);
+  const blocks = resolveFencedBlocks([...source.matchAll(FENCE_REGEX)].map(toCodeBlock));
 
-  blocks.forEach((block, blockIndex) => {
+  blocks.forEach((block) => {
     if (block.content.trim() === '') return;
     artifacts.push({
-      id: `${chatId}-${messageIndex}-${blockIndex}`,
+      id: `${chatId}-${messageIndex}-${block.index}`,
       chatId,
       messageIndex,
-      title: paths[blockIndex],
+      title: block.path,
       type: getArtifactType(block.language),
       language: block.language || 'plaintext',
-      filePath: paths[blockIndex],
+      filePath: block.path,
       content: block.content,
       createdAt,
     });

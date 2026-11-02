@@ -11,6 +11,7 @@ import {
   LocalStorageInterfaceV5ToV6,
   LocalStorageInterfaceV6ToV7,
   LocalStorageInterfaceV7oV8,
+  LocalStorageInterfaceV8ToV9,
 } from '@type/chat';
 import {
   _defaultChatConfig,
@@ -102,5 +103,12 @@ export const migrateV7 = (persistedState: LocalStorageInterfaceV7oV8) => {
   persistedState.chats.forEach((chat) => {
     if (chat.folder) chat.folder = folderNameToIdMap[chat.folder];
     chat.id = uuidv4();
+  });
+};
+
+export const migrateV8 = (persistedState: LocalStorageInterfaceV8ToV9) => {
+  persistedState.defaultSystemMessage = '';
+  persistedState.chats.forEach((chat) => {
+    chat.messages = chat.messages.filter((m) => m.role !== 'system');
   });
 };

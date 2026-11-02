@@ -41,7 +41,7 @@ const ChatHeader = ({
     )
   );
 
-  const config = useStore(
+  const chatConfig = useStore(
     (state) =>
       state.chats &&
       state.chats.length > 0 &&
@@ -51,6 +51,9 @@ const ChatHeader = ({
         : undefined,
     shallow
   );
+  const defaultConfig = useStore((state) => state.defaultChatConfig);
+  const setDefaultChatConfig = useStore((state) => state.setDefaultChatConfig);
+  const config = chatConfig ?? defaultConfig;
 
   const [modelDrop, setModelDrop, modelDropRef] = useHideOnOutsideClick();
   const [isSettingsOpen, setIsSettingsOpen] = React.useState<boolean>(false);
@@ -59,6 +62,10 @@ const ChatHeader = ({
     React.useState<boolean>(false);
 
   const setConfig = (cfg: ConfigInterface) => {
+    if (!chatConfig) {
+      setDefaultChatConfig(cfg);
+      return;
+    }
     const updatedChats: ChatInterface[] = JSON.parse(
       JSON.stringify(useStore.getState().chats)
     );
@@ -179,7 +186,7 @@ const ChatHeader = ({
           setIsModalOpen={setIsSettingsOpen}
           chatTools={
             <>
-              {config && (
+              {chatConfig && (
                 <button
                   className='btn btn-neutral'
                   onClick={() => {
@@ -204,7 +211,7 @@ const ChatHeader = ({
         />
       )}
 
-      {isConfigOpen && config && (
+      {isConfigOpen && chatConfig && (
         <ConfigMenu
           setIsModalOpen={setIsConfigOpen}
           config={config}

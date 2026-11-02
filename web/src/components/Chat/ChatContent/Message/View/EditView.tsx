@@ -4,13 +4,13 @@ import useStore from '@store/store';
 import useDraftStore from '@store/draft-store';
 
 import useSubmit from '@hooks/useSubmit';
+import { selectOrCreateChat } from '@hooks/useAddChat';
 
 import { ChatInterface } from '@type/chat';
 
 import PopupModal from '@components/PopupModal';
 import CommandPrompt from '../CommandPrompt';
 
-import RefreshIcon from '@icon/RefreshIcon';
 import SendIcon from '@icon/SendIcon';
 import {
   BookmarkIcon,
@@ -35,6 +35,7 @@ const EditView = ({
 }) => {
   const setChats = useStore((state) => state.setChats);
   const currentChatIndex = useStore((state) => state.currentChatIndex);
+  const setImageMode = useStore((state) => state.setImageMode);
 
   const [_content, _setContent] = useState<string>(content);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -61,17 +62,18 @@ const EditView = ({
       );
 
     if (e.key === 'Enter' && !isMobile && !e.shiftKey) {
+      if (sticky && _content === '') return;
+      if (sticky) ensureActiveChat();
       const updatedChats: ChatInterface[] = JSON.parse(
         JSON.stringify(useStore.getState().chats)
       );
-      const updatedMessages = updatedChats[currentChatIndex].messages;
+      const chatIndex = useStore.getState().currentChatIndex;
+      const updatedMessages = updatedChats[chatIndex].messages;
 
       if (sticky) {
-        if (_content !== '') {
-          updatedMessages.push({ role: 'user', content: _content });
-          _setContent('');
-          resetTextAreaHeight();
-        }
+        updatedMessages.push({ role: 'user', content: _content });
+        _setContent('');
+        resetTextAreaHeight();
       } else {
         updatedMessages[messageIndex].content = _content;
         setIsEdit(false);
@@ -81,12 +83,19 @@ const EditView = ({
     }
   };
 
+  const ensureActiveChat = () => {
+    const { chats, currentChatIndex: index } = useStore.getState();
+    if (!chats || !(index >= 0 && index < chats.length)) selectOrCreateChat();
+  };
+
   const handleSave = () => {
     if (sticky && _content === '') return;
+    if (sticky) ensureActiveChat();
     const updatedChats: ChatInterface[] = JSON.parse(
       JSON.stringify(useStore.getState().chats)
     );
-    const updatedMessages = updatedChats[currentChatIndex].messages;
+    const chatIndex = useStore.getState().currentChatIndex;
+    const updatedMessages = updatedChats[chatIndex].messages;
 
     if (sticky) {
       updatedMessages.push({ role: 'user', content: _content });
@@ -100,6 +109,7 @@ const EditView = ({
   };
 
   const { handleSubmit } = useSubmit();
+
   const handleGenerate = () => {
     if (useStore.getState().apiKey === '') {
       setIsModalOpen(true);
@@ -218,6 +228,15 @@ const EditView = ({
                   <DeepResearchIcon className='h-3.5 w-3.5' />
                 </button>
               )}
+              {sticky && (
+                <button
+                  className={pillClass(false)}
+                  onClick={() => setImageMode(true)}
+                  aria-label='image mode'
+                >
+                  Image
+                </button>
+              )}
               <input
                 ref={fileInputRef}
                 type='file'
@@ -229,19 +248,31 @@ const EditView = ({
 
             <div className='flex items-center gap-1'>
               <button
-                className={`flex h-9 w-9 items-center justify-center rounded-full text-white shadow-soft transition-all ${
+                className='flex h-9 w-9 items-center justify-center rounded-full bg-brand-500 text-white shadow-soft transition-all hover:bg-brand-600 disabled:opacity-50'
+                onClick={
                   generating
-                    ? 'cursor-not-allowed bg-brand-300'
-                    : 'bg-brand-500 hover:bg-brand-600'
-                }`}
-                onClick={handleGenerate}
-                aria-label={generating ? 'generating' : 'send message'}
-                disabled={generating}
+                    ? () => useStore.getState().setGenerating(false)
+                    : handleGenerate
+                }
+                aria-label={generating ? 'stop generating' : 'send message'}
               >
-                {_content.trim() === '' && !generating ? (
+                {generating ? (
+                  <svg
+                    stroke='currentColor'
+                    fill='none'
+                    strokeWidth='1.5'
+                    viewBox='0 0 24 24'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    className='h-3 w-3'
+                    height='1em'
+                    width='1em'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <rect x='3' y='3' width='18' height='18' rx='2' ry='2'></rect>
+                  </svg>
+                ) : _content.trim() === '' ? (
                   <MicIcon className='h-4 w-4' />
-                ) : generating ? (
-                  <RefreshIcon />
                 ) : (
                   <SendIcon />
                 )}

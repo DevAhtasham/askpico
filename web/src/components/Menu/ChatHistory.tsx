@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-import useInitialiseNewChat from '@hooks/useInitialiseNewChat';
-
 import ChatIcon from '@icon/ChatIcon';
 import CrossIcon from '@icon/CrossIcon';
 import DeleteIcon from '@icon/DeleteIcon';
 import EditIcon from '@icon/EditIcon';
 import TickIcon from '@icon/TickIcon';
 import useStore from '@store/store';
+import { clearArtifactState } from '@utils/artifactState';
 
 const ChatHistoryClass = {
   normal:
@@ -18,7 +17,6 @@ const ChatHistoryClass = {
 
 const ChatHistory = React.memo(
   ({ title, chatIndex }: { title: string; chatIndex: number }) => {
-    const initialiseNewChat = useInitialiseNewChat();
     const setCurrentChatIndex = useStore((state) => state.setCurrentChatIndex);
     const setChats = useStore((state) => state.setChats);
     const active = useStore((state) => state.currentChatIndex === chatIndex);
@@ -42,12 +40,15 @@ const ChatHistory = React.memo(
       const updatedChats = JSON.parse(
         JSON.stringify(useStore.getState().chats)
       );
+      const deletedChatId = updatedChats[chatIndex]?.id;
+      if (deletedChatId) clearArtifactState(deletedChatId);
       updatedChats.splice(chatIndex, 1);
       if (updatedChats.length > 0) {
         setCurrentChatIndex(0);
         setChats(updatedChats);
       } else {
-        initialiseNewChat();
+        setCurrentChatIndex(-1);
+        setChats([]);
       }
       setIsDelete(false);
     };

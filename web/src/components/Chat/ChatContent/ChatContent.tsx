@@ -76,11 +76,12 @@ const ChatContent = ({
           <div ref={saveRef} className='flex min-h-full w-full flex-col'>
             <div className='fade-in mx-auto w-full max-w-3xl px-4 pt-4 pb-6'>
               {messages?.map((message, index) =>
-                advancedMode || index !== 0 || message.role !== 'system' ? (
+                !message.image && (advancedMode || index !== 0 || message.role !== 'system') ? (
                   <Message
                     role={message.role}
                     content={message.content}
                     messageIndex={index}
+                    image={message.image}
                     key={index}
                   />
                 ) : null

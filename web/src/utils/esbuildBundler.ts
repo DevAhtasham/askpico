@@ -1,5 +1,6 @@
 import type * as Esbuild from 'esbuild-wasm';
 import { buildScaffoldFiles, normalizeProjectFiles } from '@utils/projectScaffold';
+import { normalizeProjectPaths } from '@utils/artifactPaths';
 import { fetchWithRetry } from '@api/api';
 
 export interface SourceFile {
@@ -61,6 +62,14 @@ const UNSPLASH_URL = /https?:\/\/(?:images|source|plus)\.unsplash\.com\/[^\s"'`)
 
 const replaceBlockedImages = (content: string) =>
   content.replace(UNSPLASH_URL, 'https://placehold.co/600x400/1e293b/38bdf8?text=Preview');
+
+// Applied ONLY to user source files (not the inline script constants below), so a
+// generated nested access like `pkg.perk.map(...)` becomes `(pkg.perk ?? []).map(...)`.
+const guardUndefinedMaps = (content: string) =>
+  content.replace(
+    /(?<![\w$.])([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\.(map|filter|reduce|forEach)\(/g,
+    (_match, target: string, method: string) => `(${target} ?? []).${method}(`
+  );
 
 const dirOf = (path: string) =>
   path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
@@ -214,7 +223,11 @@ const createPlugin = (files: Map<string, string>, entryContent: string | null, s
 
       if (args.path.startsWith('.') || args.path.startsWith('/')) {
         const base = args.path.startsWith('/') || args.importer === '__entry__' ? '' : dirOf(normalizePath(args.importer));
-        const resolved = resolveVirtual(files, base, args.path) ?? resolveByBasename(files, args.path);
+        let resolved = resolveVirtual(files, base, args.path);
+        if (!resolved) {
+          resolved = resolveByBasename(files, args.path);
+          if (resolved) console.warn(`[preview] resolved "${args.path}" by file name to ${resolved}`);
+        }
         if (resolved) return { path: resolved, namespace: 'virtual' };
         if (args.path.endsWith('.css')) return { path: normalizePath(base ? `${base}/${args.path}` : args.path), namespace: 'empty-css' };
         return { errors: [{ text: `Cannot resolve "${args.path}" from "${args.importer}". Available files: ${[...files.keys()].join(', ')}` }] };
@@ -276,29 +289,70 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, onTimeout: () => void) 
 
 const logStep = (step: string, detail: unknown = '') => console.log(`[preview] ${step}`, detail);
 
+const auditSourceFiles = (files: Map<string, string>) => {
+  files.forEach((content, path) => {
+    if (!/\.(jsx|tsx|js|ts)$/.test(path)) return;
+    logStep(`Step 1 audit: ${path}`, { lines: content.split('\n').length, chars: content.length });
+
+    const declared = new Set<string>();
+    for (const m of content.matchAll(/\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)) declared.add(m[1]);
+    for (const m of content.matchAll(/\bimport\s+([\w$]+)/g)) declared.add(m[1]);
+    for (const m of content.matchAll(/\bimport\s+[^'"]*?\{([^}]*)\}/g))
+      m[1].split(',').forEach((part) => declared.add(part.split(' as ').pop()!.trim()));
+    for (const m of content.matchAll(/\{([^{}]*)\}/g))
+      m[1].split(',').forEach((part) => declared.add(part.split(':').pop()!.split('=')[0].trim()));
+    for (const m of content.matchAll(/\(\s*([A-Za-z_$][\w$]*)\s*(?:[,)=])/g)) declared.add(m[1]);
+
+    for (const m of content.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\.(map|filter|reduce|forEach)\(/g)) {
+      if (!declared.has(m[1])) {
+        console.warn(`[preview] audit: "${m[1]}.${m[2]}(" in ${path} has no visible declaration. It will be undefined at runtime unless it is a global.`);
+      }
+    }
+    for (const m of content.matchAll(/([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+)\.(map|filter|reduce|forEach)\(/g)) {
+      console.warn(`[preview] audit: chained call "${m[1]}.${m[2]}(" in ${path}. Confirm "${m[1]}" is an array in every render, because a missing key here causes "reading 'map'".`);
+    }
+  });
+};
+
 const escapeForScript = (code: string) => code.replace(/<\/script/gi, '<\\/script');
 
 const FALLBACK_SCRIPT = `(function(){var box=document.getElementById('fallback'),root=document.getElementById('root');function show(msg,color){box.style.display='block';box.style.color=color||'#b91c1c';box.textContent=msg;}function fail(msg){console.error('[preview] step 4 failed: '+msg);show(msg);}console.log('[preview] step 4: iframe document started');if(!window.React||!window.ReactDOM){fail('React UMD failed to load from unpkg. Check the network connection or the CDN.');}window.addEventListener('error',function(e){if(e.target&&e.target!==window){fail('Failed to load resource: '+(e.target.src||e.target.href));return;}fail('Preview runtime error: '+((e.error&&e.error.stack)||e.message));},true);window.addEventListener('unhandledrejection',function(e){var r=e.reason;fail('Unhandled promise rejection: '+((r&&r.stack)||String(r)));});new MutationObserver(function(_,obs){if(root.hasChildNodes()){console.log('[preview] step 4: React mounted into #root');obs.disconnect();}}).observe(root,{childList:true});setTimeout(function(){if(!root.hasChildNodes()&&box.style.display!=='block'){show('Step 4: the bundle ran but #root is empty, so the component rendered nothing. Make sure it returns JSX and is exported (default or named).','#b45309');console.warn('[preview] step 4: #root is empty after 1.5s');}},1500);})();`;
 
-const STORAGE_SHIM_SCRIPT = `(function(){function memoryStorage(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};},key:function(i){return Object.keys(m)[i]||null;},get length(){return Object.keys(m).length;}};}['localStorage','sessionStorage'].forEach(function(name){try{var s=window[name];s.setItem('__probe__','1');s.removeItem('__probe__');}catch(e){try{Object.defineProperty(window,name,{value:memoryStorage(),configurable:true});}catch(_){}console.warn('[preview] '+name+' unavailable in sandbox, using in-memory fallback');}});})();`;
+const toScriptJson = (value: unknown) =>
+  JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
-const INTERCEPTOR_SCRIPT = `(function(){if(window.parent===window)return;function post(m){parent.postMessage(m,'*');}document.addEventListener('click',function(e){var t=e.target;var a=t&&t.closest?t.closest('a'):null;if(!a)return;var href=a.getAttribute('href');if(!href)return;if(href.charAt(0)==='#'){e.preventDefault();var id=decodeURIComponent(href.slice(1));var el=id?document.getElementById(id):document.body;if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return;}e.preventDefault();if(a.target==='_blank'||/^(https?:|mailto:|tel:)/i.test(href)){post({type:'artifact-external-link',url:href});return;}post({type:'artifact-navigate',path:href});},true);document.addEventListener('submit',function(e){e.preventDefault();post({type:'artifact-form-submit'});},true);})();`;
+const storageShimScript = (seed: Record<string, string>) =>
+  `(function(){var seed=${toScriptJson(seed)};function memoryStorage(m,onChange){return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;},setItem:function(k,v){m[k]=String(v);if(onChange)onChange({type:'artifact-storage-set',key:String(k),value:String(v)});},removeItem:function(k){delete m[k];if(onChange)onChange({type:'artifact-storage-set',key:String(k),value:null});},clear:function(){for(var k in m)delete m[k];if(onChange)onChange({type:'artifact-storage-clear'});},key:function(i){return Object.keys(m)[i]||null;},get length(){return Object.keys(m).length;}};}function send(msg){if(window.parent!==window)parent.postMessage(msg,'*');}var local={};for(var k in seed)local[k]=String(seed[k]);try{Object.defineProperty(window,'localStorage',{value:memoryStorage(local,send),configurable:true});}catch(_){}try{var s=window.sessionStorage;s.setItem('__probe__','1');s.removeItem('__probe__');}catch(e){try{Object.defineProperty(window,'sessionStorage',{value:memoryStorage({},null),configurable:true});}catch(_){}}})();`;
 
-export const bundleReactArtifact = async (sources: SourceFile[], options: { entry?: string } = {}): Promise<string> => {
+const INTERCEPTOR_SCRIPT = `(function(){if(window.parent===window)return;function post(m){parent.postMessage(m,'*');}document.addEventListener('click',function(e){var t=e.target;var a=t&&t.closest?t.closest('a'):null;if(!a)return;var href=a.getAttribute('href');if(!href)return;if(href.charAt(0)==='#'){e.preventDefault();var id=decodeURIComponent(href.slice(1));var el=id?document.getElementById(id):document.body;if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return;}e.preventDefault();if(a.target==='_blank'||/^(https?:|mailto:|tel:)/i.test(href)){post({type:'artifact-external-link',url:href});return;}post({type:'artifact-navigate',path:href});},true);function sendForm(form){var fields={};var count=0;new FormData(form).forEach(function(value,key){if(typeof value!=='string'||count>=50)return;if(!(key in fields))count++;fields[key]=value.slice(0,2000);});post({type:'artifact-form-submit',formId:form.id||null,fields:fields});}function submitForm(form){form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));sendForm(form);}document.addEventListener('click',function(e){var t=e.target;var b=t&&t.closest?t.closest('button,input[type=submit],input[type=image]'):null;if(!b||!b.form)return;if(b.type==='button'||b.type==='reset')return;e.preventDefault();submitForm(b.form);},true);document.addEventListener('keydown',function(e){if(e.key!=='Enter'||e.isComposing)return;var t=e.target;if(!t||t.tagName!=='INPUT'||!t.form)return;if(['submit','button','reset','checkbox','radio','file','image'].indexOf(t.type)!==-1)return;if(t.form.querySelector('button:not([type=button]):not([type=reset]),input[type=submit],input[type=image]'))return;e.preventDefault();submitForm(t.form);},true);HTMLFormElement.prototype.submit=function(){submitForm(this);};HTMLFormElement.prototype.requestSubmit=function(){submitForm(this);};window.addEventListener('message',function(e){if(e.source!==parent)return;var d=e.data;if(!d||d.type!=='artifact-form-result')return;var box=document.getElementById('__form_status');if(!box){box=document.createElement('div');box.id='__form_status';box.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:8px 14px;border-radius:8px;color:#fff;font:14px system-ui,sans-serif;z-index:2147483647;display:none';document.body.appendChild(box);}box.style.background=d.ok?'#059669':'#b91c1c';box.textContent=String(d.message||'');box.style.display='block';clearTimeout(window.__formStatusTimer);window.__formStatusTimer=setTimeout(function(){box.style.display='none';},4000);});})();`;
+
+export const bundleReactArtifact = async (
+  sources: SourceFile[],
+  options: { entry?: string; tailwindCss?: string; storageSeed?: Record<string, string> } = {}
+): Promise<string> => {
+  const tailwindCss = options.tailwindCss ?? '';
   let step = 'Step 1: virtual file system mapping';
   try {
     logStep(step, { inputs: sources.map((file) => file.filePath ?? file.language) });
     const files = new Map<string, string>();
-    normalizeProjectFiles(sources.map((file) => ({ path: toVirtualPath(file), content: replaceBlockedImages(file.content) }))).forEach((file) =>
+    normalizeProjectFiles(normalizeProjectPaths(sources.map((file) => ({ path: toVirtualPath(file), content: guardUndefinedMaps(replaceBlockedImages(file.content)) })))).forEach((file) =>
       files.set(file.path, file.content)
     );
     if (files.size === 0) throw new Error('No source files to preview');
     Object.entries(buildScaffoldFiles([...files.keys()])).forEach(([path, content]) => files.set(path, content));
     logStep(step, { virtualFiles: [...files.keys()] });
+    auditSourceFiles(files);
 
     const entry = options.entry && files.has(options.entry) ? options.entry : pickEntry(files);
     const entryContent = buildEntryContent(files, entry);
     logStep(step, { entry, mountWrapper: entryContent !== null });
+    [...files.entries()]
+      .filter(([path]) => path.startsWith('src/') && path !== 'src/index.jsx' && /\.(jsx|tsx|js|ts)$/.test(path))
+      .forEach(([path, content]) => {
+        console.groupCollapsed(`[preview] source of ${path} (copy this if the error persists)`);
+        console.log(content);
+        console.groupEnd();
+      });
 
     step = 'Step 2: esbuild initialization and build';
     const controller = new AbortController();
@@ -327,7 +381,8 @@ export const bundleReactArtifact = async (sources: SourceFile[], options: { entr
 
     step = 'Step 4: iframe HTML injection';
     logStep(step, { jsChars: js.length, cssChars: css.length });
-    return `<!doctype html><html><head><meta charset="utf-8"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script><script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script><script>${STORAGE_SHIM_SCRIPT}</script><script>${INTERCEPTOR_SCRIPT}</script><style>${css}</style></head><body><div id="root"></div><pre id="fallback" style="display:none;position:fixed;inset:0;margin:0;overflow:auto;background:#fef2f2;color:#b91c1c;padding:16px;font:12px/1.5 monospace;white-space:pre-wrap"></pre><script>${FALLBACK_SCRIPT}</script><script type="module">${escapeForScript(js)}</script></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script><script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script><script>${storageShimScript(options.storageSeed ?? {})}</script><script>${INTERCEPTOR_SCRIPT}</script><style>${tailwindCss}${css}</style></head><body><div id="root"></div><pre id="fallback" style="display:none;position:fixed;inset:0;margin:0;overflow:auto;background:#fef2f2;color:#b91c1c;padding:16px;font:12px/1.5 monospace;white-space:pre-wrap"></pre><script>${FALLBACK_SCRIPT}</script><script type="module">${escapeForScript(js)}</script></body></html>`;
+    return html;
   } catch (err) {
     console.error(`[preview] failed at ${step}`, err);
     throw new Error(`Failed at ${step}\n\n${err instanceof Error ? err.stack || err.message : String(err)}`);

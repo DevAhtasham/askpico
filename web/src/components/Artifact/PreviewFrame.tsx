@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+import { compileArtifactTailwind, submitArtifactForm } from '@api/api';
 import useStore from '@store/store';
 import { ArtifactInterface } from '@type/artifact';
 import { bundleReactArtifact } from '@utils/esbuildBundler';
+import {
+  clearArtifactState,
+  loadArtifactState,
+  setArtifactStateItem,
+} from '@utils/artifactState';
 import { logger } from '@utils/logger';
 
 const REACT_LANGUAGES = ['jsx', 'tsx'];
@@ -48,29 +54,64 @@ const PreviewFrame = ({
     sources.map((s) => [s.filePath, s.language, s.content])
   );
 
+  const postFormResult = (ok: boolean, message: string) =>
+    iframeRef.current?.contentWindow?.postMessage({ type: 'artifact-form-result', ok, message }, '*');
+
   useEffect(() => {
     if (!isReact) return;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
-      const data = event.data as { type?: string; url?: string; path?: string } | null;
+      const data = event.data as {
+        type?: string;
+        url?: string;
+        path?: string;
+        formId?: string | null;
+        fields?: Record<string, string>;
+        key?: string;
+        value?: string | null;
+      } | null;
       if (data?.type === 'artifact-external-link' && data.url) {
         window.open(data.url, '_blank', 'noopener,noreferrer');
       } else if (data?.type === 'artifact-navigate' && data.path) {
         const page = resolvePage(sourcesRef.current, data.path);
         if (page) setEntryOverride(page.entry);
         else logger.warn(`No page component found for "${data.path}"`);
+      } else if (data?.type === 'artifact-storage-set' && typeof data.key === 'string') {
+        setArtifactStateItem(artifact.chatId, data.key, data.value ?? null);
+      } else if (data?.type === 'artifact-storage-clear') {
+        clearArtifactState(artifact.chatId);
+      } else if (data?.type === 'artifact-form-submit' && data.fields) {
+        submitArtifactForm({
+          artifactId: artifact.id,
+          formId: data.formId ?? null,
+          submittedAt: new Date().toISOString(),
+          fields: data.fields,
+        })
+          .then((ok) =>
+            ok
+              ? postFormResult(true, 'Submitted successfully.')
+              : postFormResult(false, 'Submission was rejected. Please check your input and try again.')
+          )
+          .catch(() => postFormResult(false, 'Submission failed. Please try again.'));
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [isReact]);
+  }, [isReact, artifact.id, artifact.chatId]);
 
   useEffect(() => {
     if (!isReact || generating) return;
     let cancelled = false;
     setCompiling(true);
     setError(null);
-    bundleReactArtifact(sources, { entry: entryOverride ?? undefined })
+    compileArtifactTailwind(sources.map((s) => s.content))
+      .then((tailwindCss) =>
+        bundleReactArtifact(sources, {
+          entry: entryOverride ?? undefined,
+          tailwindCss,
+          storageSeed: loadArtifactState(artifact.chatId),
+        })
+      )
       .then((doc) => {
         if (!cancelled) setReactDoc(doc);
       })

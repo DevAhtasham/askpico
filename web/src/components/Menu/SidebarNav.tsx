@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 
+import useStore from '@store/store';
 import { PromptLibraryMenuPopUp } from '@components/PromptLibraryMenu/PromptLibraryMenu';
-import {
-  CompassIcon,
-  ClockIcon,
-  FileIcon,
-  LibraryIcon,
-} from '@icon/ui';
+import { CompassIcon, FileIcon, LibraryIcon, SparkleIcon } from '@icon/ui';
 
 const SidebarNav = () => {
   const [libraryOpen, setLibraryOpen] = useState<boolean>(false);
@@ -29,20 +25,14 @@ const SidebarNav = () => {
       onClick: () => setLibraryOpen(true),
     },
     {
-      label: 'Files',
+      label: 'Project',
       icon: <FileIcon className='h-4 w-4' />,
-      onClick: () => {
-        window.dispatchEvent(new CustomEvent('fahmchat:attach-file'));
-      },
+      onClick: () => useStore.getState().setProjectMode(true),
     },
     {
-      label: 'History',
-      icon: <ClockIcon className='h-4 w-4' />,
-      onClick: () => {
-        document
-          .getElementById('chat-history-scroll')
-          ?.scrollTo({ top: 0, behavior: 'smooth' });
-      },
+      label: 'Studio',
+      icon: <SparkleIcon className='h-4 w-4' />,
+      onClick: () => useStore.getState().setImageMode(true),
     },
   ];
 

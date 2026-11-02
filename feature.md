@@ -36,8 +36,15 @@ Ye file har feature ko uske platform ke hisaab se group karti hai: Web, PC aur M
 | 21 | Offline QR Code Generator & Scanner | PC, Mobile | Device | Device |
 | 22 | BarCode Generator (Local Shopkeepers) | PC, Mobile | Device | Device |
 | 23 | Salary / Tax Calculator (Pakistani Tax Slabs) | PC, Mobile | Device | Device |
+| 24 | Text-to-Voice "Omni Voice" (Edge TTS + Filter Layer) | Web, PC, Mobile | Base voice backend se, filters device par | Near free (sirf LLM text tokens) |
+| 25 | Voice-to-Text Continuous (STT Voice Mode) | Web (Chrome/Edge), PC, Mobile (Android) | Browser speech API (device) | Almost free |
+| 26 | Voice-to-Voice (Jarvis Loop) | Web (Chrome/Edge), PC, Mobile (Android) | STT device + TTS backend + LLM | LLM API (chhota) |
+| 27 | Animated Emoji Head Companion + Mood Machine | Web, PC, Mobile | Device (Rive/Canvas) | Device |
+| 28 | Guest Local LLM (WebLLM / WebGPU) | Web (WebGPU browsers), PC | User ka device | Free (device) |
+| 29 | Text + Voice Guardrail & Persona Layer | Web, PC, Mobile | Client + Backend middleware | LLM API (chhota) |
+| 30 | Voice Quota + Gamified Referral System | Web, PC, Mobile | Backend + DB | Server |
 
-Note: Feature 4 (Voice Notes Chat) aur desktop table ka Voice Input ek hi feature hai.
+Note: Feature 4 (Voice Notes Chat) aur desktop table ka Voice Input ek hi feature hai. Feature 25 isi ka continuous voice-mode extension hai.
 
 ## Web Features (LLM API par chalne wale)
 
@@ -53,10 +60,94 @@ In features ko cloud LLM API ki zaroorat hai, is liye inka cost sab se zyada hai
 | 4 | Voice Notes Chat (Mic Button) | Pakistan mein log lambay prompts type nahi karte, WhatsApp jaisa voice input chahte hain | ChatGPT Plus ka feature free mein milta hai | Browser ki `webkitSpeechRecognition` use karein, server par Whisper ki zaroorat nahi | Ye sirf Chrome aur Edge mein kaam karta hai, Firefox mein nahi. Chrome mein speech audio Google ke servers par jati hai, to "fully client-side" kehna sahi nahi. Privacy notice likhein |
 | 5 | AI Prompt Enhancer aur Essay Expansion | "1-Click Prompt Perfector" aur "Assignment Humanizer" | Chhote prompt se achha prompt banta hai, naye users ke liye aasan | Chote model par single-sentence transformation (10-20 tokens per execution) | Humanizer ke liye bhi academic integrity ka masla hai |
 
+## Voice Companion Features (Naye — Finalized)
+
+Ye features voice mode, animated companion, guest-local-AI aur growth system ka complete package banate hain. Har feature ke sath likha hai ke wo kis device par chalega, kis par nahi aur kyun, aur hamari existing web app (React + Vite frontend + Node `backend/` server) mein chalega ya nahi aur kyun.
+
+### Feature 24: Text-to-Voice "Omni Voice" (Edge TTS + Audio Filter Layer)
+
+Do hisse hain: (a) backend par Edge TTS se natural base voice, (b) client par Web Audio API filter layer (EQ, reverb, pitch, playbackRate) jo har platform par ek jaisi branded voice deti hai. Downloadable audio ke liye backend par FFmpeg chain (atempo, equalizer, highpass, loudnorm).
+
+- **Kahan chalega:** Web, PC (Electron), Mobile — sab jagah, kyunki audio backend se aata hai aur filters standard Web Audio API hain jo har modern browser aur WebView mein chalti hai.
+- **Kahan nahi / limit:** Bohat purane browsers (IE, purana Android WebView) mein Web Audio filters limited hain — wahan raw audio play hogi, filter skip hoga.
+- **Edge browser zaroori nahi:** `edge-tts` user ke device par Edge nahi kholta; backend Microsoft ke public speech endpoint ko direct call karta hai. Chrome/Firefox/app sab par same voice aayegi.
+- **Hamari web app mein:** Haan, chal sakta hai. Backend Node server par `msedge-tts` ya `edge-tts` microservice lagakar `.mp3` stream ban sakti hai, aur frontend par `AudioContext`, `BiquadFilterNode`, `ConvolverNode` se filter layer apply hogi.
+- **Caveat:** Edge TTS unofficial/undocumented hai — Microsoft kabhi bhi endpoint change ya block kar sakta hai, aur commercial use par unki ToS ka risk hai. Fallback ke tor par browser `speechSynthesis` rakhein. Note: browser `speechSynthesis` asli SSML parse nahi karti (sirf rate/pitch/volume params hain) — pauses punctuation (`...`, commas) se simulate karein. Edge TTS par asli SSML chal jati hai.
+- **Cost:** Base voice $0, filters client-side $0. Sirf text LLM token cost lagegi.
+
+### Feature 25: Voice-to-Text Continuous (STT Voice Mode)
+
+Browser `webkitSpeechRecognition` se user ki awaz real-time text mein. Feature 4 (Voice Notes Chat) ka extended form — continuous listening, silence detection aur auto-restart ke sath.
+
+- **Kahan chalega:** Desktop Chrome/Edge aur Android Chrome — achha support. PC (Electron) par chal sakta hai lekin Google speech endpoint ki wajah se network chahiye aur kabhi kabhi fail hota hai — alag se test zaroori.
+- **Kahan nahi:** Firefox (support nahi), iOS Safari (limited/none — real device par verify karein). In par text-input fallback dikhana hoga.
+- **Privacy note:** Ye "fully local" nahi hai — Chrome speech audio Google ke servers ko bhejta hai. Privacy notice zaroori.
+- **Hamari web app mein:** Haan — Feature 4 already planned hai; continuous mode ke liye auto-restart + endpointing add karna hoga.
+
+### Feature 26: Voice-to-Voice (Jarvis Loop)
+
+STT → LLM → TTS ka continuous loop: user bolta hai, AI jawab deta hai, Omni Voice sunati hai. Siri/Jarvis jaisi feel ke liye barge-in (AI bolte waqt user interrupt kar sake) aur low-latency routing chahiye.
+
+- **Kahan chalega:** Wahan jahan STT + TTS dono hon — Desktop Chrome/Edge, Android Chrome, PC (Electron, test ke baad).
+- **Kahan nahi:** Firefox aur iOS Safari par STT ki wajah se poora loop nahi chalega — wahan "type karo, voice reply suno" fallback hoga.
+- **Hamari web app mein:** Haan — teeno pieces is stack mein mumkin hain.
+
+### Feature 27: Animated Emoji Head Companion + Mood State Machine
+
+Poori body nahi — sirf ek expressive animated head (Rive/Lottie/Canvas) jo moods (happy, crying, flirty, thinking) ke hisaab se expressions badalta hai. Mood AI ke response ke sath aane wale tag se set hota hai (e.g. `[mood: caring]`) — user ko mode manually switch nahi karna, aur neutral text bhi current mood ke lehje mein adapt hoga.
+
+- **Kahan chalega:** Web, PC, Mobile — sab jagah. Rive/Lottie/Canvas lightweight hain, 2 GB RAM wale Tier 1 phone par bhi chal jayenge.
+- **Kahan nahi:** Kahin nahi — ye pure client-side animation hai.
+- **Hamari web app mein:** Haan, bilkul. React mein `@rive-app/react-canvas` ya Lottie component + Zustand mood state lag sakta hai. Mood tag guardrail layer (Feature 29) se aayega aur voice filters ke sath sync hoga (happy = pitch up, sad = slow/low).
+- **Caveat:** Art assets ka license clean rakhna; kal ko custom model train karne ke liye yahi mood tags dataset ka hissa banenge.
+
+### Feature 28: Guest Local LLM (Browser mein chalne wala chhota model)
+
+Guest/casual users ke liye chhota model unke hi browser mein (`@mlc-ai/web-llm` / WebGPU) chalega — server cost $0. Models: SmolLM-360M (~200 MB), Qwen2.5-0.5B (~350 MB), Llama-3.2-1B (~700 MB). Complex ya signed-in queries backend LLM par jayengi (hybrid routing).
+
+- **Kahan chalega:** Chrome/Edge 113+ desktop (WebGPU), Chrome Android 121+, PC (Electron — Chromium hai is liye WebGPU milta hai). 4 GB+ RAM realistic minimum; 1B+ models ke liye 6-8 GB better.
+- **Kahan nahi:** Firefox (WebGPU flag ke peeche), purana iOS/Safari (WebGPU iOS 26+ par aya — purane devices par nahi), Tier 1 (2 GB) phones — model hi load nahi hoga. In sab par backend ya sign-up prompt fallback.
+- **Hamari web app mein:** Haan — ye web app ke liye hi designed hai. Model pehli baar download hota hai aur browser cache mein rehta hai. Local reply bhi hamari filter/persona layers se guzrega, is liye branded lagega.
+- **Device policy:** User ke device par model chalana "distributed compute" nahi hai kyunki kaam user ke apne fayde ke liye hai aur wo khud chat kar raha hai — lekin pehli download se pehle size (~MB) batayein aur progress dikhayein.
+- **Caveat:** Chhote models ki quality limited hai — sirf casual Q&A ke liye; useful/complex query detect karke backend route karein.
+
+### Feature 29: Text + Voice Guardrail & Persona Layer (Middleware)
+
+Har response — chahe local model se aaye ya backend se — user ko dikhne se pehle layers se guzrega: (1) local sanity fix (formatting, broken JSON, half text), (2) persona/tone injector (mood ke hisaab se rewrite + `[mood]` tag), (3) server-side corrective (safety, format repair, fallback rewrite) jab request backend par ho.
+
+- **Kahan chalega:** Sab devices — Layer 1-2 client-side JS hain, Layer 3 backend par.
+- **Hamari web app mein:** Haan — frontend mein post-process function + `backend/src/server.js` mein middleware dono mumkin hain. Is se UI kabhi broken JSON ya tute text ki wajah se crash nahi hogi aur persona har platform par same rahega.
+
+### Feature 30: Voice Quota + Gamified Referral System
+
+Free: 30 min/day voice. Pro: 2 hr/day. Referral rewards: join karwane par +10 min; referred user ke roz active hone par +1 min/day; referred user ke Pro upgrade + use par +5 min/use. Har raat quota reset.
+
+- **Kahan chalega:** Sab platforms — ye pure backend + database logic hai (Supabase ya hamara Node backend + DB).
+- **Hamari web app mein:** Haan, lekin ek requirement hai — abhi app guest/localStorage-based hai, referral tracking ke liye user accounts (auth + DB) chahiye. Google OAuth (GoogleSync) already hai, us par build ho sakta hai. Voice timer client par chale lekin balance server verify kare (client-side timer easily hack ho sakta hai).
+- **Fraud caveat:** Fake referrals/sybil abuse rokne ke liye device fingerprint ya email/phone verification lagayein, warna log khud ko refer karke unlimited minutes le lenge.
+
+## Monetization (Pakistan Pricing — Finalized)
+
+| Plan | Price | Limit |
+|------|-------|-------|
+| Free | Rs. 0 | 30 min/day voice + referral rewards |
+| Weekly Pass | Rs. 250-350/week | 2 hr/day voice, sab tools |
+| Monthly Pro | Rs. 799-999/month | 2 hr/day voice, priority AI |
+| Ultra | Rs. 1,499-1,999/month | No daily limit, exclusive moods/skins |
+
+- **Payments:** JazzCash / EasyPaisa / local cards zaroori — sirf international card rakhne par 90% Pakistani users drop ho jayenge.
+- **iOS caveat:** iPhone app mein digital content JazzCash se bechna Apple rules ke khilaf hai — iOS par Apple IAP (30% cut) mandatory hoga, ya iOS app mein purchase option hi na rakhein (web se buy karwaein). Apple policy official docs se verify karein.
+- **Revenue math:** Rs. 899 avg par ~112 Pro users = Rs. 100k MRR; 1,000 Pro users ≈ Rs. 8-9 lakh MRR. Infra cost (Edge TTS free + guest local LLM + cheap text LLM) approx Rs. 15-30k/month tak reh sakta hai.
+
+## Voice Roadmap (Copyright-Safe)
+
+- **Phase 1 (abhi):** Edge TTS + hamari filter layer — free, fast launch. Copyright risk low lekin zero nahi (unofficial API), is liye filter layer se voice ko uniquely transform karein.
+- **Phase 2 (revenue ke baad):** Professional voice artist se 1-2 hr clean recording + written contract → open-source TTS (F5-TTS / Coqui / Bark) fine-tune → apni "Omni Voice" model. Is se 100% copyright-safe, har platform par identical branded voice milegi.
+
 ## Viral Growth Checklist
 
 - **Watermarked Social Sharing Cards:** Har acha response, PDF summary ya code output "Share as Image" ke sath, neeche app ka logo aur link.
-- **Referral Credit Loop:** "3 friends share karein, 10 High-Speed Reasoning Messages unlock karein." Ye organic loop banata hai.
+- **Referral Credit Loop:** Voice minutes wala detailed system Feature 30 mein hai — join par +10 min, roz active use par +1 min/day, Pro upgrade par +5 min/use. Ye organic loop banata hai.
 - **No Credit Card Required:** Google OAuth ya One-Click Guest Session. Guest abuse rokne ke liye rate limit zaroori hai.
 
 ## Cost Control Zaroori Baatein
@@ -263,3 +354,5 @@ Device ka processing use karna policy ke against nahi hai, lekin user ki jaankar
 1. Pehle Feature 1 (PDF Chat) aur Feature 4 (Voice Input) implement karein, kyunki inki cost sab se kam hai.
 2. Backend proxy aur rate limit setup karein.
 3. Har feature ke liye cost per query ka test karein aur is file ko actual numbers se update karein.
+4. Voice system (Feature 24-26) aur Guest Local LLM (Feature 28) implement karein — near-zero cost ke sath sab se bada differentiation denge.
+5. Referral/quota system (Feature 30) ke liye auth + DB schema pehle design karein.

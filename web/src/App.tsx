@@ -5,8 +5,8 @@ import i18n from './i18n';
 import Chat from '@components/Chat';
 import Menu from '@components/Menu';
 
-import useInitialiseNewChat from '@hooks/useInitialiseNewChat';
 import { prefetchEsbuildWasm } from '@utils/esbuildPrefetch';
+import { pruneArtifactState } from '@utils/artifactState';
 import { logger } from '@utils/logger';
 import { ChatInterface } from '@type/chat';
 import { Theme } from '@type/theme';
@@ -14,7 +14,6 @@ import { defaultModel, modelOptions } from '@constants/chat';
 import Toast from '@components/Toast';
 
 function App() {
-  const initialiseNewChat = useInitialiseNewChat();
   const setChats = useStore((state) => state.setChats);
   const setTheme = useStore((state) => state.setTheme);
   const setApiKey = useStore((state) => state.setApiKey);
@@ -28,6 +27,22 @@ function App() {
   }, []);
 
   useEffect(() => prefetchEsbuildWasm(), []);
+
+  useEffect(() => pruneArtifactState(), []);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key === 'free-chat-gpt' &&
+        event.newValue !== null &&
+        !useStore.getState().generating
+      ) {
+        useStore.persist.rehydrate();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   useEffect(() => {
     // legacy local storage
@@ -54,12 +69,9 @@ function App() {
         if (chats.length > 0) {
           setChats(chats);
           setCurrentChatIndex(0);
-        } else {
-          initialiseNewChat();
         }
       } catch (e: unknown) {
         logger.warn('legacy chat migration failed:', e);
-        initialiseNewChat();
       }
       localStorage.removeItem('chats');
     } else {
@@ -73,23 +85,16 @@ function App() {
           model: defaultModel,
         });
       }
-      if (chats) {
-        setChats(
-          chats.map((chat) =>
-            modelOptions.includes(chat.config.model)
-              ? chat
-              : { ...chat, config: { ...chat.config, model: defaultModel } }
-          )
-        );
-      }
-      if (!chats || chats.length === 0) {
-        initialiseNewChat();
-      }
-      if (
-        chats &&
-        !(currentChatIndex >= 0 && currentChatIndex < chats.length)
-      ) {
-        setCurrentChatIndex(0);
+      const list = chats ?? [];
+      setChats(
+        list.map((chat) =>
+          modelOptions.includes(chat.config.model)
+            ? chat
+            : { ...chat, config: { ...chat.config, model: defaultModel } }
+        )
+      );
+      if (!(currentChatIndex >= 0 && currentChatIndex < list.length)) {
+        setCurrentChatIndex(list.length > 0 ? 0 : -1);
       }
     }
   }, []);

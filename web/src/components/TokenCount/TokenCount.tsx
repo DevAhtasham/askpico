@@ -9,15 +9,12 @@ const TokenCount = React.memo(() => {
   const [tokenCount, setTokenCount] = useState<number>(0);
   const generating = useStore((state) => state.generating);
   const messages = useStore(
-    (state) =>
-      state.chats ? state.chats[state.currentChatIndex].messages : [],
+    (state) => state.chats?.[state.currentChatIndex]?.messages ?? [],
     shallow
   );
 
-  const model = useStore((state) =>
-    state.chats
-      ? state.chats[state.currentChatIndex].config.model
-      : defaultModel
+  const model = useStore(
+    (state) => state.chats?.[state.currentChatIndex]?.config.model ?? defaultModel
   );
 
   const cost = useMemo(() => {
