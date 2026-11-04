@@ -1,1 +1,3 @@
-web/public/bin/
+apps/web/public/bin/
+node_modules/
+services/api/data/

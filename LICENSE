@@ -1,0 +1,54 @@
+PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2026 [LEGAL COPYRIGHT HOLDER NAME]. All rights reserved.
+
+1. DEFINITIONS
+
+"Software" means the Pico source code, object code, designs, documentation, and related materials in this repository, including the web application, desktop and mobile applications, and the backend service.
+
+"Third-Party Components" means the files and packages identified in THIRD_PARTY_NOTICES.md, including code derived from BetterChatGPT and open-source npm packages. Third-Party Components remain under their own licenses.
+
+"Licensee" means any person who views, uses, or otherwise accesses the Software.
+
+2. OWNERSHIP
+
+The Software, excluding the Third-Party Components, is proprietary. The copyright holder owns all right, title, and interest in it, including all intellectual property rights.
+
+3. LICENSE GRANT
+
+Subject to this license, the copyright holder grants the Licensee a limited, non-exclusive, non-transferable, revocable license to view the source code in this repository for personal evaluation and learning.
+
+4. RESTRICTIONS
+
+Except as expressly permitted in writing by the copyright holder, the Licensee may not:
+
+a. copy, reproduce, modify, or create derivative works of the Software;
+b. distribute, publish, sublicense, sell, rent, lease, or otherwise make the Software available to any third party;
+c. host, deploy, or operate the Software or any substantial part of it as a service for others;
+d. remove or alter any copyright, license, or attribution notice;
+e. use the Software to build a competing product or service;
+f. reverse engineer, decompile, or attempt to extract the source code from any compiled or hosted version, except where applicable law expressly prohibits this restriction.
+
+5. THIRD-PARTY COMPONENTS
+
+Nothing in this license restricts rights granted to the Licensee under the licenses that apply to the Third-Party Components. Those rights are stated in THIRD_PARTY_NOTICES.md and in the files under licenses/.
+
+6. TRADEMARKS
+
+This license does not grant any right to use the names, logos, or trademarks "Pico" or any other brand of the copyright holder.
+
+7. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+8. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+9. TERMINATION
+
+This license terminates automatically if the Licensee breaches any of its terms. On termination, the Licensee must delete all copies of the Software in its possession, except Third-Party Components, which remain subject to their own licenses.
+
+10. GOVERNING LAW
+
+This license is governed by the laws of [JURISDICTION]. [TO BE CONFIRMED WITH COUNSEL]

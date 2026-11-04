@@ -21,9 +21,11 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
+        working-directory: apps/web
         run: yarn
 
       - name: Build
+        working-directory: apps/web
         run: yarn make
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

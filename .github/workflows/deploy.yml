@@ -29,9 +29,11 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
+        working-directory: apps/web
         run: yarn
 
       - name: Build website
+        working-directory: apps/web
         run: yarn build
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GCLIENT }}
@@ -39,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: './dist'
+          path: apps/web/dist
 
       - name: Deploy to GitHub Pages
         id: deployment

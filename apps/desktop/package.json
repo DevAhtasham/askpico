@@ -1,0 +1,51 @@
+{
+  "name": "pico-desktop",
+  "private": true,
+  "license": "UNLICENSED",
+  "version": "1.0.5",
+  "main": "electron/index.cjs",
+  "description": "Electron desktop shell for the Pico web app in apps/web",
+  "scripts": {
+    "dev": "concurrently -k \"yarn --cwd ../web dev\" \"wait-on tcp:5173 && electron .\"",
+    "start": "electron .",
+    "build": "yarn --cwd ../web build",
+    "pack": "yarn build && electron-builder --dir",
+    "make": "yarn build && electron-builder"
+  },
+  "build": {
+    "appId": "better-chatgpt",
+    "productName": "Pico",
+    "artifactName": "${os}-${name}-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "../web/dist/**/*"
+    ],
+    "dmg": {
+      "title": "${productName} ${version}"
+    },
+    "linux": {
+      "target": [
+        "tar.gz",
+        "AppImage"
+      ],
+      "category": "Chat"
+    },
+    "win": {
+      "target": "NSIS"
+    }
+  },
+  "dependencies": {
+    "electron-is-dev": "^2.0.0",
+    "electron-squirrel-startup": "^1.0.0",
+    "electron-updater": "^5.3.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.1",
+    "electron": "^23.2.0",
+    "electron-builder": "^23.6.0",
+    "wait-on": "^7.0.1"
+  }
+}
